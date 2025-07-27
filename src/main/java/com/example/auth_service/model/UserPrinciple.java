@@ -21,7 +21,7 @@ public class UserPrinciple implements UserDetails {
     public Collection<? extends GrantedAuthority> getAuthorities() {
         try {
             return userDTO.getRoles().stream()
-                    .map(SimpleGrantedAuthority::new)
+                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                     .collect(Collectors.toList());
         } catch (Exception e) {
             System.err.println("Error mapping roles: " + e.getMessage());
