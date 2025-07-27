@@ -1,7 +1,6 @@
 package com.example.auth_service.service;
 
 import com.example.auth_service.dto.UserDTO;
-import com.example.auth_service.filter.JwtFilter;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +11,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
-import com.example.auth_service.exception.UserAlreadyExistsException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -44,7 +42,7 @@ public class UserService {
         tokens.put("Access-Token",
                 jwtService.generateAccessToken(request.getEmail(), request.getRoles()));
         tokens.put("Refresh-Token",
-                jwtService.generateRefreshToken(request.getEmail()));
+                jwtService.generateRefreshToken(request.getEmail(), request.getRoles()));
         logger.info("User registered successfully: {}", request.getEmail());
         return tokens;
     }
@@ -60,10 +58,9 @@ public class UserService {
             tokens.put("Access-Token",
                     jwtService.generateAccessToken(request.getEmail(), request.getRoles()));
             tokens.put("Refresh-Token",
-                    jwtService.generateRefreshToken(request.getEmail()));
+                    jwtService.generateRefreshToken(request.getEmail(), request.getRoles()));
             logger.info("Login successful for email: {}", request.getEmail());
             return tokens;
-
         } else {
             logger.warn("Login failed for email: {}", request.getEmail());
             throw new BadCredentialsException("Invalid email or password");

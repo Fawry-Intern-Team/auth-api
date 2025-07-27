@@ -42,7 +42,7 @@ class UserServiceTest {
         user.setPassword("password123");
         user.setRoles(Arrays.asList("USER"));
         when(jwtService.generateAccessToken(anyString(), anyList())).thenReturn("access-token");
-        when(jwtService.generateRefreshToken(anyString())).thenReturn("refresh-token");
+        when(jwtService.generateRefreshToken(anyString(), anyList())).thenReturn("refresh-token");
         Map<String, String> tokens = userService.register(user);
         assertEquals("access-token", tokens.get("Access-Token"));
         assertEquals("refresh-token", tokens.get("Refresh-Token"));
@@ -57,7 +57,7 @@ class UserServiceTest {
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
         when(authentication.isAuthenticated()).thenReturn(true);
         when(jwtService.generateAccessToken(anyString(), anyList())).thenReturn("access-token");
-        when(jwtService.generateRefreshToken(anyString())).thenReturn("refresh-token");
+        when(jwtService.generateRefreshToken(anyString(), anyList())).thenReturn("refresh-token");
         Map<String, String> tokens = userService.login(user);
         assertEquals("access-token", tokens.get("Access-Token"));
         assertEquals("refresh-token", tokens.get("Refresh-Token"));

@@ -27,6 +27,9 @@ public class JwtService {
 
     public String generateAccessToken(String email, List<String> roles) {
         Map<String, Object> claims = new HashMap<>();
+        if (roles == null || roles.isEmpty()) {
+            roles = List.of("ROLE_USER");
+        }
         claims.put("roles", roles);
 
         return Jwts.builder()
@@ -38,10 +41,15 @@ public class JwtService {
                 .compact();
     }
 
-    public String generateRefreshToken(String email) {
-        // TODO: Fetch the user from user service to get his roles
+    public String generateRefreshToken(String email, List<String> roles) {
+        Map<String, Object> claims = new HashMap<>();
+        if (roles == null || roles.isEmpty()) {
+            roles = List.of("ROLE_USER");
+        }
+        claims.put("roles", roles);
 
         return Jwts.builder()
+                .setClaims(claims)
                 .setSubject(email)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + REFRESH_TOKEN_EXP))
@@ -61,6 +69,10 @@ public class JwtService {
         } catch (Exception e) {
             throw new InvalidTokenException("Invalid token format");
         }
+    }
+
+    public List<String> extractRoles(String token) {
+        return extractClaim(token, claims -> claims.get("roles", List.class));
     }
 
     private Claims extractAllClaims(String token) {

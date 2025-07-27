@@ -2,8 +2,6 @@ package com.example.auth_service.service;
 
 import com.example.auth_service.dto.UserDTO;
 import com.example.auth_service.model.UserPrinciple;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.codec.AbstractSingleValueEncoder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -13,6 +11,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class MyUserDetailsService implements UserDetailsService {
 
+    @SuppressWarnings("unused")
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         // TODO: call user service to get the user
