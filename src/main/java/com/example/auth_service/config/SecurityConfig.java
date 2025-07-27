@@ -1,6 +1,5 @@
 package com.example.auth_service.config;
 
-import com.example.auth_service.filter.JwtFilter;
 import com.example.auth_service.service.MyUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -23,7 +22,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtFilter jwtFilter;
     private final MyUserDetailsService myUserDetailsService;
     private final OAuth2failureHandler oAuth2failureHandler;
     private final OAuth2successHandler oAuth2SuccessHandler;
