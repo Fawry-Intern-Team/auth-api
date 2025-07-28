@@ -28,7 +28,7 @@ public class JwtService {
     public String generateAccessToken(String email, List<String> roles) {
         Map<String, Object> claims = new HashMap<>();
         if (roles == null || roles.isEmpty()) {
-            roles = List.of("USER");
+            roles = List.of("ROLE_USER");
         }
         claims.put("roles", roles);
 
@@ -44,7 +44,7 @@ public class JwtService {
     public String generateRefreshToken(String email, List<String> roles) {
         Map<String, Object> claims = new HashMap<>();
         if (roles == null || roles.isEmpty()) {
-            roles = List.of("USER");
+            roles = List.of("ROLE_USER");
         }
         claims.put("roles", roles);
 

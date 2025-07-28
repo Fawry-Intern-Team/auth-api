@@ -1,5 +1,6 @@
 package com.example.auth_service.service;
 
+import com.example.auth_service.enums.Role;
 import io.jsonwebtoken.Claims;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;

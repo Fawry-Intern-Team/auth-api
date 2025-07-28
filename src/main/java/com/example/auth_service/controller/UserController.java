@@ -26,59 +26,12 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody UserDTO request,
                                       HttpServletResponse response) {
-        logger.info("Register endpoint called for email: {}", request.getEmail());
-
-        var tokens = userService.register(request);
-        String refreshToken = tokens.get("Refresh-Token");
-
-        ResponseCookie refreshCookie = ResponseCookie.from("Refresh-Token", refreshToken)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(7 * 24 * 60 * 60)
-                .sameSite("Strict")
-                .build();
-        response.addHeader("Set-Cookie", refreshCookie.toString());
-
-        ResponseCookie accessCookie = ResponseCookie.from("Access-Token", refreshToken)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(15 * 60)
-                .sameSite("Strict")
-                .build();
-        response.addHeader("Set-Cookie", accessCookie.toString());
-
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        return userService.register(request, response);
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody UserDTO request,
                                    HttpServletResponse response) {
-        logger.info("Login endpoint called for email: {}", request.getEmail());
-
-        var tokens = userService.login(request);
-        String refreshToken = tokens.get("Refresh-Token");
-
-
-        ResponseCookie refreshCookie = ResponseCookie.from("Refresh-Token", refreshToken)
-            .httpOnly(true)
-            .secure(true)
-            .path("/")
-            .maxAge(7 * 24 * 60 * 60)
-            .sameSite("Strict")
-            .build();
-        response.addHeader("Set-Cookie", refreshCookie.toString());
-
-        ResponseCookie accessCookie = ResponseCookie.from("Access-Token", refreshToken)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(15 * 60)
-                .sameSite("Strict")
-                .build();
-        response.addHeader("Set-Cookie", accessCookie.toString());
-
-        return ResponseEntity.status(HttpStatus.ACCEPTED).build();
+        return userService.login(request, response);
     }
 }
