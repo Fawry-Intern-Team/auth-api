@@ -41,6 +41,15 @@ public class SecurityConfig {
                     .successHandler(oAuth2SuccessHandler)
                     .failureHandler(oAuth2failureHandler)
             )
+                .securityMatcher(request -> {
+                    String path = request.getRequestURI();
+                    return !path.startsWith("/auth/login") &&
+                            !path.startsWith("/auth/register") &&
+                            !path.startsWith("/auth/refresh") &&
+                            !path.startsWith("/actuator") &&
+                            !path.startsWith("/auth/test/public") &&
+                            !path.startsWith("/auth/test/health");
+                })
             .oauth2ResourceServer(oauth2 -> oauth2
                     .bearerTokenResolver(cookieBearerTokenResolver)
                     .jwt(Customizer.withDefaults()))

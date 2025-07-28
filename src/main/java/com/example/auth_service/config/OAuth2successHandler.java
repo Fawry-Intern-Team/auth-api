@@ -31,18 +31,24 @@ public class OAuth2successHandler implements AuthenticationSuccessHandler {
         String accessToken = jwtService.generateAccessToken(email, null);
         String refreshToken = jwtService.generateRefreshToken(email, null);
 
-        // Set refresh token as HttpOnly cookie
         ResponseCookie refreshCookie = ResponseCookie.from("Refresh-Token", refreshToken)
                 .httpOnly(true)
-                .secure(true)
                 .path("/")
+                .maxAge(7 * 24 * 60 * 60)
+                .sameSite("Strict")
+                .build();
+
+        ResponseCookie accessCookie = ResponseCookie.from("Access-Token", accessToken)
+                .httpOnly(true)
+                .path("/")
+                .maxAge(15 * 60)
                 .sameSite("Strict")
                 .build();
 
         response.setHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+        response.setHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
-        String redirectUrl = "http://localhost:3000/login-success#accessToken=" + accessToken;
+        String redirectUrl = "http://localhost:4200/login-success#accessToken=" + accessToken;
         response.sendRedirect(redirectUrl);
     }
-
 }

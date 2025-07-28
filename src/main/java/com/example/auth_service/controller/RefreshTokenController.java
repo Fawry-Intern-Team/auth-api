@@ -24,7 +24,6 @@ public class RefreshTokenController {
 
         ResponseCookie accessCookie = ResponseCookie.from("Access-Token", refreshToken)
                 .httpOnly(true)
-                .secure(true)
                 .path("/")
                 .maxAge(15 * 60)
                 .sameSite("Strict")
