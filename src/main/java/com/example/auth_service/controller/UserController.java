@@ -30,7 +30,6 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody UserLoginDTO request,
                                    HttpServletResponse response) {
-        System.out.println(request);
         return userService.login(request, response);
     }
 

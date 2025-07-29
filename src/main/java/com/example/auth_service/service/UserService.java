@@ -1,5 +1,6 @@
 package com.example.auth_service.service;
 
+import com.example.auth_service.dto.LoginRequest;
 import com.example.auth_service.dto.UserDTO;
 import com.example.auth_service.dto.UserLoginDTO;
 import com.example.auth_service.dto.UserResponseDTO;
@@ -36,7 +37,7 @@ import java.util.stream.Collectors;
 public class UserService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
-    private BCryptPasswordEncoder bCryptPasswordEncoder = new BCryptPasswordEncoder(12);
+    private final BCryptPasswordEncoder bCryptPasswordEncoder = new BCryptPasswordEncoder(12);
     @Autowired
     private AuthenticationManager authenticationManager;
 
@@ -89,17 +90,20 @@ public class UserService {
     public ResponseEntity<?> login(@Valid UserLoginDTO request,
                                    HttpServletResponse response) {
         logger.info("Attempting login for email: {}", request.getEmail());
+        LoginRequest loginRequest = new LoginRequest(request.getEmail(), request.getPassword());
+
         ResponseEntity<UserResponseDTO> restResponse = null;
         try {
-            restResponse = restTemplate.getForEntity(
-                    "http://user-service/api/users/by-email?email=" + request.getEmail(),
+            restResponse = restTemplate.postForEntity(
+                    "http://user-service/api/users/login",
+                    loginRequest,
                     UserResponseDTO.class
             );
             if (!restResponse.getStatusCode().is2xxSuccessful() || restResponse.getBody() == null) {
-                throw new UsernameNotFoundException("User not found with email: " + request.getEmail());
+                throw new BadCredentialsException("Invalid credentials");
             }
         } catch (RestClientException e) {
-            throw new UsernameNotFoundException("User not found with email: " + request.getEmail());
+            throw new BadCredentialsException("Invalid credentials");
         }
 
         UserResponseDTO user = restResponse.getBody();

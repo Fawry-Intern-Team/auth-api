@@ -30,19 +30,22 @@ public class OAuth2successHandler implements AuthenticationSuccessHandler {
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException {
         OAuth2User user = (OAuth2User) authentication.getPrincipal();
-        String name = user.getAttribute("name");
         String picture = user.getAttribute("picture");
         String email = user.getAttribute("email");
         String googleUserId = user.getAttribute("sub");
+        String firstName = user.getAttribute("given_name");
+        String lastName = user.getAttribute("family_name");
 
-// Default role
+        System.out.println(firstName + " " + lastName);
+
+        // Default role
         List<String> roles = List.of("USER");
 
-// Generate tokens
+        // Generate tokens
         String accessToken = jwtService.generateAccessToken(email, roles);
         String refreshToken = jwtService.generateRefreshToken(email, roles);
 
-// Set secure cookies
+        // Set secure cookies
         ResponseCookie refreshCookie = ResponseCookie.from("Refresh-Token", refreshToken)
                 .httpOnly(true)
                 .path("/")
@@ -65,13 +68,15 @@ public class OAuth2successHandler implements AuthenticationSuccessHandler {
 
         // Redirect with non-sensitive user info
         String redirectUrl = String.format(
-                "http://localhost:4200/login-success?email=%s&name=%s&picture=%s&googleId=%s&roles=%s",
+                "http://localhost:4200/login-success?email=%s&firstName=%s&lastName=%s&picture=%s&googleId=%s&roles=%s",
                 URLEncoder.encode(email, StandardCharsets.UTF_8),
-                URLEncoder.encode(name, StandardCharsets.UTF_8),
+                URLEncoder.encode(firstName, StandardCharsets.UTF_8),
+                URLEncoder.encode(lastName, StandardCharsets.UTF_8),
                 URLEncoder.encode(picture, StandardCharsets.UTF_8),
                 URLEncoder.encode(googleUserId, StandardCharsets.UTF_8),
                 rolesParam
         );
+
 
         response.sendRedirect(redirectUrl);
     }

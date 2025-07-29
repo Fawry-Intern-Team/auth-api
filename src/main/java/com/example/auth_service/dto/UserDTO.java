@@ -10,6 +10,11 @@ import java.util.List;
 
 @Data
 public class UserDTO {
+    @NotBlank(message = "First name is required")
+    private String firstName;
+
+    @NotBlank(message = "Last name is required")
+    private String lastName;
 
     @NotBlank
     @Email(message = "Invalid email format")
