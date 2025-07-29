@@ -2,7 +2,10 @@ package com.example.auth_service.service;
 
 import com.example.auth_service.dto.UserDTO;
 import com.example.auth_service.dto.UserLoginDTO;
+import com.example.auth_service.dto.UserResponseDTO;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import com.example.auth_service.exception.UserAlreadyExistsException;
+import com.example.auth_service.model.UserPrinciple;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -18,6 +21,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
@@ -51,15 +55,11 @@ public class UserService {
             restResponse = restTemplate.postForEntity(
                     "http://user-service/api/users",
                     request,
-                    String.class
+                    UserResponseDTO.class
             );
         } catch (RestClientException e) {
             throw new UserAlreadyExistsException("User with email " + request.getEmail() + " already exists");
         }
-
-//        if (restResponse.getStatusCode() == HttpStatus.BAD_REQUEST) {
-//            throw new UserAlreadyExistsException("User with email " + request.getEmail() + " already exists");
-//        }
 
         String accessToken = jwtService.generateAccessToken(request.getEmail(), request.getRoles());
         String refreshToken = jwtService.generateRefreshToken(request.getEmail(), request.getRoles());
@@ -78,38 +78,45 @@ public class UserService {
                 .sameSite("Strict")
                 .build();
 
-        response.addHeader("Set-Cookie", refreshCookie.toString());
-        response.addHeader("Set-Cookie", accessCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
         return ResponseEntity
                 .status(restResponse.getStatusCode())
                 .body(restResponse.getBody());
     }
 
-
-
     public ResponseEntity<?> login(@Valid UserLoginDTO request,
                                    HttpServletResponse response) {
         logger.info("Attempting login for email: {}", request.getEmail());
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
-
-        if (!authentication.isAuthenticated()) {
-            logger.warn("Login failed for email: {}", request.getEmail());
-            throw new BadCredentialsException("Invalid email or password");
+        ResponseEntity<UserResponseDTO> restResponse = null;
+        try {
+            restResponse = restTemplate.getForEntity(
+                    "http://user-service/api/users/by-email?email=" + request.getEmail(),
+                    UserResponseDTO.class
+            );
+            if (!restResponse.getStatusCode().is2xxSuccessful() || restResponse.getBody() == null) {
+                throw new UsernameNotFoundException("User not found with email: " + request.getEmail());
+            }
+        } catch (RestClientException e) {
+            throw new UsernameNotFoundException("User not found with email: " + request.getEmail());
         }
+
+        UserResponseDTO user = restResponse.getBody();
+        List<String> roles = user.getRoles();
+
+        Authentication authentication = new UsernamePasswordAuthenticationToken(user.getEmail(), null, roles.stream()
+                .map(SimpleGrantedAuthority::new)
+                .collect(Collectors.toList()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
-        List<String> roles = auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
+        String accessToken = jwtService.generateAccessToken(request.getEmail(), roles.stream()
                 .map(role -> role.startsWith("ROLE_") ? role.substring(5) : role)
-                .collect(Collectors.toList());
-
-        String accessToken = jwtService.generateAccessToken(request.getEmail(), roles);
-        String refreshToken = jwtService.generateRefreshToken(request.getEmail(), roles);
+                .collect(Collectors.toList()));
+        String refreshToken = jwtService.generateRefreshToken(request.getEmail(), roles.stream()
+                .map(role -> role.startsWith("ROLE_") ? role.substring(5) : role)
+                .collect(Collectors.toList()));
 
         int refreshMaxAge = !request.isKeepLoggedIn() ? -1 : 7 * 24 * 60 * 60;
         int accessMaxAge = !request.isKeepLoggedIn() ? -1 : 15 * 60;
@@ -128,11 +135,13 @@ public class UserService {
                 .sameSite("Strict")
                 .build();
 
-        response.addHeader("Set-Cookie", refreshCookie.toString());
-        response.addHeader("Set-Cookie", accessCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
         logger.info("Login successful for email: {}", request.getEmail());
-        return ResponseEntity.accepted().build();
+        return ResponseEntity
+                .status(restResponse.getStatusCode())
+                .body(restResponse.getBody());
     }
 
     public void deleteCookie(String name, HttpServletResponse response) {

@@ -22,16 +22,10 @@ public class MyUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         try {
-            ResponseEntity<String> response2 = restTemplate.getForEntity(
-                    "http://user-service/api/users/by-email?email=" + email,
-                    String.class
-            );
             ResponseEntity<UserDTO> response = restTemplate.getForEntity(
                     "http://user-service/api/users/by-email?email=" + email,
                     UserDTO.class
             );
-            System.out.println(response2);
-            System.out.println(response);
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 return new UserPrinciple(response.getBody());
             } else {
