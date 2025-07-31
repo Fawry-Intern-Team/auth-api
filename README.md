@@ -43,7 +43,7 @@ sequenceDiagram
     UserController->>UserService: register(request, response)
     UserService->>UserService: encodePassword(password)
     UserService->>ExternalUserService: POST /api/users (UserDTO)
-    ExternalUserService-->>UserService1: UserResponseDTO
+    ExternalUserService-->>UserService: UserResponseDTO
     UserService->>JwtService: generateAccessToken(email, roles)
     JwtService-->>UserService: accessToken
     UserService->>JwtService: generateRefreshToken(email, roles)
