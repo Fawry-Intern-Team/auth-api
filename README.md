@@ -1,175 +1,215 @@
-# Authentication Service
+# Authentication Service Documentation
 
-A robust Spring Boot-based authentication service that provides JWT-based authentication and authorization with comprehensive error handling and logging.
+## Overview
 
-## 🚀 Features
+This is a comprehensive Spring Boot-based authentication service that provides JWT-based authentication and authorization with support for both traditional username/password login and OAuth2 Google authentication. The service is designed as a microservice that communicates with a separate user service for user management.
 
-- **JWT Authentication** - Secure token-based authentication
-- **User Registration & Login** - Complete user management
-- **Token Refresh** - Automatic token renewal mechanism
+## Architecture Overview
+
+The authentication service follows a layered architecture pattern with clear separation of concerns:
+
+### Core Components
+
+1. **Controllers Layer** - REST API endpoints
+2. **Services Layer** - Business logic implementation
+3. **Configuration Layer** - Security and application configuration
+4. **DTOs** - Data Transfer Objects for API communication
+5. **Models** - Domain entities
+6. **Exceptions** - Custom exception handling
+
+## Key Features
+
+- **JWT Authentication** - Secure token-based authentication with access and refresh tokens
+- **OAuth2 Integration** - Google OAuth2 authentication support
+- **Cookie-based Token Storage** - Secure HTTP-only cookies for token storage
 - **Role-based Authorization** - Support for multiple user roles
+- **Microservice Architecture** - Integration with external user service
 - **Comprehensive Error Handling** - Proper HTTP status codes and error responses
-- **Logging** - Detailed logging for monitoring and debugging
-- **Unit Testing** - Complete test coverage for all components
-- **Security** - BCrypt password encoding and secure token validation
+- **Security Best Practices** - BCrypt password encoding, secure token validation
 
-## 🛠️ Technology Stack
+## Authentication Flows
 
-- **Java 17**
-- **Spring Boot 3.5.3**
-- **Spring Security**
-- **JWT (JSON Web Tokens)**
-- **Maven**
-- **SLF4J Logging**
-- **JUnit 5 & Mockito**
+### 1. User Registration Flow
 
-## 📋 Prerequisites
+```mermaid
+sequenceDiagram
+    participant Client
+    participant UserController
+    participant UserService
+    participant JwtService
+    participant UserService as ExternalUserService
 
-- Java 17 or higher
-- Maven 3.6+ (or use the included Maven wrapper)
-- IDE (IntelliJ IDEA, Eclipse, or VS Code)
-
-## 🚀 Quick Start
-
-### 1. Clone the Repository
-```bash
-git clone <repository-url>
-cd auth-service
+    Client->>UserController: POST /auth/register (UserDTO)
+    UserController->>UserService: register(request, response)
+    UserService->>UserService: encodePassword(password)
+    UserService->>ExternalUserService: POST /api/users (UserDTO)
+    ExternalUserService-->>UserService: UserResponseDTO
+    UserService->>JwtService: generateAccessToken(email, roles)
+    JwtService-->>UserService: accessToken
+    UserService->>JwtService: generateRefreshToken(email, roles)
+    JwtService-->>UserService: refreshToken
+    UserService->>UserService: createCookies(accessToken, refreshToken)
+    UserService-->>UserController: ResponseEntity<UserResponseDTO>
+    UserController-->>Client: 201 Created + Cookies
 ```
 
-### 2. Configure Application Properties
-Create `src/main/resources/application.properties`:
-```properties
-# Server Configuration
-server.port=8082
+### 2. User Login Flow
 
-# JWT Configuration
-jwt.secret=your-256-bit-secret-key-here-make-it-long-and-secure
+```mermaid
+sequenceDiagram
+    participant Client
+    participant UserController
+    participant UserService
+    participant JwtService
+    participant UserService as ExternalUserService
 
-# Logging Configuration
-logging.level.com.example.auth_service=INFO
-logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss} - %msg%n
-
-# Spring Security
-spring.security.user.name=admin
-spring.security.user.password=admin
+    Client->>UserController: POST /auth/login (UserLoginDTO)
+    UserController->>UserService: login(request, response)
+    UserService->>ExternalUserService: POST /api/users/login (LoginRequest)
+    ExternalUserService-->>UserService: UserResponseDTO
+    UserService->>UserService: createAuthentication(user)
+    UserService->>JwtService: generateAccessToken(email, roles)
+    JwtService-->>UserService: accessToken
+    UserService->>JwtService: generateRefreshToken(email, roles)
+    JwtService-->>UserService: refreshToken
+    UserService->>UserService: createCookies(accessToken, refreshToken)
+    UserService-->>UserController: ResponseEntity<UserResponseDTO>
+    UserController-->>Client: 200 OK + Cookies
 ```
 
-### 3. Build and Run
-```bash
-# Using Maven wrapper
-./mvnw clean install
-./mvnw spring-boot:run
+### 3. Token Refresh Flow
 
-# Or using Maven directly
-mvn clean install
-mvn spring-boot:run
+```mermaid
+sequenceDiagram
+    participant Client
+    participant RefreshTokenController
+    participant RefreshTokenService
+    participant JwtService
+
+    Client->>RefreshTokenController: GET /auth/refresh (Refresh-Token Cookie)
+    RefreshTokenController->>RefreshTokenService: refresh(refreshToken)
+    RefreshTokenService->>JwtService: validateToken(refreshToken)
+    JwtService-->>RefreshTokenService: boolean
+    
+    alt Token Valid
+        RefreshTokenService->>JwtService: extractClaim(refreshToken, Claims::getSubject)
+        JwtService-->>RefreshTokenService: email
+        RefreshTokenService->>JwtService: extractRoles(refreshToken)
+        JwtService-->>RefreshTokenService: roles
+        RefreshTokenService->>JwtService: generateAccessToken(email, roles)
+        JwtService-->>RefreshTokenService: newAccessToken
+        RefreshTokenService-->>RefreshTokenController: newAccessToken
+        RefreshTokenController->>RefreshTokenController: createAccessCookie(newAccessToken)
+        RefreshTokenController-->>Client: 202 Accepted + Access-Token Cookie
+    else Token Invalid
+        RefreshTokenService-->>RefreshTokenController: BadCredentialsException
+        RefreshTokenController-->>Client: 401 Unauthorized
+    end
 ```
 
-The application will start on `http://localhost:8082`
+### 4. OAuth2 Google Login Flow
 
-## 📚 API Endpoints
+```mermaid
+sequenceDiagram
+    participant Client
+    participant SecurityConfig
+    participant OAuth2SuccessHandler
+    participant JwtService
+    participant Google as GoogleOAuth2
 
-| Endpoint | Method | Description | Authentication |
-|----------|--------|-------------|----------------|
-| `/api/health` | GET | Check service health | None |
-| `/api/info` | GET | Get service information | None |
-| `/api/auth/register` | POST | Register a new user | None |
-| `/api/auth/login` | POST | Authenticate user | None |
-| `/api/auth/refresh` | POST | Refresh access token | None |
-| `/api/auth/protected` | GET | Test protected endpoint | JWT Required |
-
-### Base URL
+    Client->>SecurityConfig: GET /oauth2/authorization/google
+    SecurityConfig->>Google: OAuth2 Authorization
+    Google-->>SecurityConfig: Authorization Code
+    SecurityConfig->>OAuth2SuccessHandler: onAuthenticationSuccess(request, response, authentication)
+    OAuth2SuccessHandler->>OAuth2SuccessHandler: extractUserInfo(authentication)
+    OAuth2SuccessHandler->>JwtService: generateAccessToken(email, roles)
+    JwtService-->>OAuth2SuccessHandler: accessToken
+    OAuth2SuccessHandler->>JwtService: generateRefreshToken(email, roles)
+    JwtService-->>OAuth2SuccessHandler: refreshToken
+    OAuth2SuccessHandler->>OAuth2SuccessHandler: createCookies(accessToken, refreshToken)
+    OAuth2SuccessHandler->>OAuth2SuccessHandler: buildRedirectUrl(userInfo)
+    OAuth2SuccessHandler-->>Client: 302 Redirect to frontend
 ```
-http://localhost:8082/api/auth
-```
 
-### 1. User Registration
-**Endpoint:** `POST /api/auth/register`
+## API Endpoints
 
-**Request Body:**
+### Authentication Endpoints
+
+| Endpoint | Method | Description | Request Body | Response |
+|----------|--------|-------------|--------------|----------|
+| `/auth/register` | POST | Register new user | UserDTO | UserResponseDTO + Cookies |
+| `/auth/login` | POST | User login | UserLoginDTO | UserResponseDTO + Cookies |
+| `/auth/refresh` | GET | Refresh access token | Cookie: Refresh-Token | New Access-Token Cookie |
+| `/auth/clear` | GET | Clear all cookies | None | 200 OK + Expired Cookies |
+| `/auth/clear-access` | GET | Clear access token only | None | 200 OK + Expired Access Cookie |
+
+### OAuth2 Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/oauth2/authorization/google` | GET | Initiate Google OAuth2 login |
+| `/login/oauth2/code/google` | GET | OAuth2 callback (handled by Spring) |
+
+### Health and Testing Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/auth/test/public` | GET | Public test endpoint |
+| `/auth/test/health` | GET | Health check endpoint |
+
+## Data Models
+
+### UserDTO
 ```json
 {
-  "email": "user@example.com",
-  "password": "password123",
-  "roles": ["USER"]
+  "firstName": "string",
+  "lastName": "string", 
+  "email": "string",
+  "password": "string",
+  "roles": ["string"]
 }
 ```
 
-**Response (201 Created):**
+### UserLoginDTO
 ```json
 {
-  "Access-Token": "eyJhbGciOiJIUzI1NiJ9...",
-  "Refresh-Token": "eyJhbGciOiJIUzI1NiJ9..."
+  "email": "string",
+  "password": "string",
+  "keepMeLoggedIn": boolean
 }
 ```
 
-### 2. User Login
-**Endpoint:** `POST /api/auth/login`
-
-**Request Body:**
+### UserResponseDTO
 ```json
 {
-  "email": "user@example.com",
-  "password": "password123",
-  "roles": ["USER"]
+  "id": "string",
+  "email": "string",
+  "firstName": "string",
+  "lastName": "string",
+  "roles": ["string"]
 }
 ```
 
-**Response (200 OK):**
-```json
-{
-  "Access-Token": "eyJhbGciOiJIUzI1NiJ9...",
-  "Refresh-Token": "eyJhbGciOiJIUzI1NiJ9..."
-}
-```
+## Security Configuration
 
-### 3. Token Refresh
-**Endpoint:** `POST /api/auth/refresh`
+### JWT Configuration
+- **Access Token Expiration**: 15 minutes
+- **Refresh Token Expiration**: 7 days
+- **Token Secret**: Base64 encoded secret key
+- **Algorithm**: HMAC-SHA256
 
-**Request Body:**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiJ9..."
-}
-```
+### Cookie Configuration
+- **HttpOnly**: true (prevents XSS attacks)
+- **Secure**: true (HTTPS only)
+- **SameSite**: Strict (prevents CSRF attacks)
+- **Path**: "/" (available across the application)
 
-**Response (200 OK):**
-```json
-{
-  "Access-Token": "eyJhbGciOiJIUzI1NiJ9..."
-}
-```
+### OAuth2 Configuration
+- **Provider**: Google
+- **Scopes**: openid, profile, email
+- **Redirect URI**: http://localhost:8080/login/oauth2/code/google
 
-### 4. Protected Endpoint Example
-**Endpoint:** `GET /api/auth/protected`
-
-**Headers:**
-```
-Authorization: Bearer <access-token>
-```
-
-**Response (200 OK):**
-```json
-"this is protected"
-```
-
-## 🔐 Authentication Flow
-
-1. **Registration**: User registers with email, password, and roles
-2. **Login**: User authenticates and receives access and refresh tokens
-3. **API Access**: Include `Authorization: Bearer <access-token>` header
-4. **Token Refresh**: Use refresh token to get new access token when expired
-
-## 🛡️ Security Features
-
-- **BCrypt Password Encoding** - Secure password hashing
-- **JWT Token Validation** - Secure token verification
-- **Role-based Access Control** - Authorization based on user roles
-- **Token Expiration** - Access tokens expire after 15 minutes
-- **Refresh Token Rotation** - Secure token renewal mechanism
-
-## 📊 Error Handling
+## Error Handling
 
 The service provides comprehensive error handling with proper HTTP status codes:
 
@@ -183,143 +223,119 @@ The service provides comprehensive error handling with proper HTTP status codes:
 | Token Expired | 401 | Expired JWT token |
 | Internal Server Error | 500 | Unexpected server error |
 
-### Error Response Format
-```json
-{
-  "error": "Error type description",
-  "message": "Detailed error message",
-  "status": "HTTP status code"
-}
+## Configuration
+
+### Application Properties
+```properties
+# Server Configuration
+server.port=8082
+spring.application.name=auth-service
+
+# JWT Configuration
+jwt.secret=your-256-bit-secret-key-here
+spring.security.oauth2.resourceserver.jwt.secret=your-256-bit-secret-key-here
+
+# OAuth2 Configuration
+spring.security.oauth2.client.registration.google.client-id=your-client-id
+spring.security.oauth2.client.registration.google.client-secret=your-client-secret
+spring.security.oauth2.client.registration.google.scope=openid,profile,email
+spring.security.oauth2.client.registration.google.redirect-uri=http://localhost:8080/login/oauth2/code/google
+
+# Discovery Service
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka
 ```
 
-## 🧪 Testing
-
-### Run All Tests
-```bash
-./mvnw test
-```
-
-### Test Coverage
-- **UserServiceTest** - Tests for user registration and login
-- **UserControllerTest** - Tests for API endpoints
-- **GlobalExceptionHandlerTest** - Tests for error handling
-- **AuthServiceApplicationTests** - Integration tests
-
-### Test Structure
-```
-src/test/java/com/example/auth_service/
-├── AuthServiceApplicationTests.java
-├── UserServiceTest.java
-├── UserControllerTest.java
-└── GlobalExceptionHandlerTest.java
-```
-
-## 📁 Project Structure
-
-```
-src/
-├── main/java/com/example/auth_service/
-│   ├── controller/
-│   │   ├── UserController.java
-│   │   ├── RefreshTokenController.java
-│   │   └── TestingController.java
-│   ├── service/
-│   │   ├── UserService.java
-│   │   ├── JwtService.java
-│   │   ├── RefreshTokenService.java
-│   │   └── MyUserDetailsService.java
-│   ├── dto/
-│   │   ├── UserDTO.java
-│   │   └── RefreshTokenDTO.java
-│   ├── model/
-│   │   └── UserPrinciple.java
-│   ├── config/
-│   │   └── SecurityConfig.java
-│   ├── filter/
-│   │   └── JwtFilter.java
-│   ├── exception/
-│   │   ├── GlobalExceptionHandler.java
-│   │   ├── UserAlreadyExistsException.java
-│   │   ├── InvalidTokenException.java
-│   │   └── TokenExpiredException.java
-│   └── AuthServiceApplication.java
-└── test/java/com/example/auth_service/
-    ├── AuthServiceApplicationTests.java
-    ├── UserServiceTest.java
-    ├── UserControllerTest.java
-    └── GlobalExceptionHandlerTest.java
-```
-
-## 🔧 Configuration
-
-### JWT Configuration
-- **Access Token Expiration**: 15 minutes
-- **Refresh Token Expiration**: 7 days
-- **Token Secret**: Configure in `application.properties`
-
-### Security Configuration
-- **Password Encoder**: BCrypt with strength 12
-- **Session Management**: Stateless
-- **CSRF**: Disabled for API usage
-- **CORS**: Configure as needed
-
-## 📝 Logging
-
-The service includes comprehensive logging:
-
-- **INFO Level**: User registration, login attempts, successful operations
-- **WARN Level**: Authentication failures, validation errors
-- **ERROR Level**: Unexpected exceptions, system errors
-
-### Log Format
-```
-2024-01-15 10:30:45 - Registering user with email: user@example.com
-2024-01-15 10:30:46 - User registered successfully: user@example.com
-```
-
-## 🚀 Deployment
+## Deployment
 
 ### Docker
 ```dockerfile
 FROM openjdk:17-jdk-slim
 COPY target/auth-service-0.0.1-SNAPSHOT.jar app.jar
-EXPOSE 8080
+EXPOSE 8082
 ENTRYPOINT ["java", "-jar", "/app.jar"]
 ```
 
 ### Environment Variables
 ```bash
 export JWT_SECRET=your-secure-secret-key
-export SERVER_PORT=8080
-export LOGGING_LEVEL=INFO
+export SERVER_PORT=8082
+export GOOGLE_CLIENT_ID=your-google-client-id
+export GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
-## 🤝 Contributing
+## Using the Diagrams
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### Sequence Diagram (`auth-service-sequence-diagram.puml`)
+This diagram shows the detailed interaction flow between components for all major authentication scenarios:
+- User registration
+- User login
+- Token refresh
+- Protected resource access
+- OAuth2 Google login
+- Logout
 
-## 📄 License
+To view this diagram:
+1. Use a PlantUML renderer (VS Code extension, online editor, or IDE plugin)
+2. Copy the content of `auth-service-sequence-diagram.puml`
+3. The diagram will show the complete authentication flows with timing and decision points
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Architecture Diagram (`auth-service-architecture-diagram.puml`)
+This diagram provides a high-level view of the system architecture:
+- Shows all major components and their relationships
+- Illustrates external service dependencies
+- Displays security components and their integration
 
-## 🆘 Support
+### Class Diagram (`auth-service-class-diagram.puml`)
+This diagram shows the detailed class structure:
+- All major classes with their attributes and methods
+- Relationships between classes
+- Inheritance and dependency relationships
 
-For support and questions:
-- Create an issue in the repository
-- Check the existing documentation
-- Review the test cases for usage examples
+## Best Practices
 
-## 🔄 Version History
+### Security
+1. **Token Storage**: Always use HttpOnly cookies for token storage
+2. **Password Security**: Use BCrypt with strength 12 for password hashing
+3. **Token Expiration**: Keep access tokens short-lived (15 minutes)
+4. **Refresh Token Rotation**: Implement secure refresh token handling
+5. **Input Validation**: Validate all user inputs
+6. **Error Handling**: Don't expose sensitive information in error messages
 
-- **v1.0.0** - Initial release with JWT authentication
-- Added comprehensive error handling
-- Implemented logging and unit testing
-- Added token refresh functionality
+### Performance
+1. **Token Validation**: Cache validated tokens when possible
+2. **Database Connections**: Use connection pooling
+3. **Logging**: Use appropriate log levels and avoid logging sensitive data
+4. **Monitoring**: Implement health checks and metrics
 
----
+### Maintainability
+1. **Separation of Concerns**: Keep controllers thin, business logic in services
+2. **Exception Handling**: Use centralized exception handling
+3. **Configuration**: Externalize configuration properties
+4. **Testing**: Maintain comprehensive test coverage
 
-**Note**: This is a demo project for Spring Boot authentication. For production use, ensure proper security measures, database integration, and additional security configurations. 
+## Troubleshooting
+
+### Common Issues
+
+1. **Token Expired**: Check if access token is within 15-minute window
+2. **Invalid Token**: Verify JWT secret key configuration
+3. **OAuth2 Issues**: Check Google OAuth2 client configuration
+4. **Cookie Issues**: Ensure proper cookie domain and path settings
+5. **CORS Issues**: Configure CORS for frontend integration
+
+### Debugging
+
+Enable debug logging:
+```properties
+logging.level.org.springframework.security=DEBUG
+logging.level.org.springframework.security.oauth2=DEBUG
+logging.level.com.example.auth_service=DEBUG
+```
+
+## Contributing
+
+1. Follow the existing code structure and patterns
+2. Add comprehensive tests for new features
+3. Update documentation for any API changes
+4. Follow security best practices
+5. Use meaningful commit messages
