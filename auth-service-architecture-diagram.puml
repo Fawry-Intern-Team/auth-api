@@ -1,0 +1,148 @@
+@startuml Auth Service Architecture Diagram
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam componentStyle rectangle
+skinparam roundcorner 20
+
+title Authentication Service - Architecture Overview
+
+package "Client Applications" {
+    [Web Client] as WC
+    [Mobile App] as MA
+    [API Client] as AC
+}
+
+package "Authentication Service" {
+    package "Controllers" {
+        [UserController] as UC
+        [RefreshTokenController] as RTC
+        [HealthController] as HC
+        [TestController] as TC
+    }
+    
+    package "Services" {
+        [UserService] as US
+        [JwtService] as JWT
+        [RefreshTokenService] as RTS
+        [MyUserDetailsService] as MUDS
+    }
+    
+    package "Configuration" {
+        [SecurityConfig] as SC
+        [CookieBearerTokenResolver] as CBTR
+        [OAuth2SuccessHandler] as OAuth2SH
+        [OAuth2FailureHandler] as OAuth2FH
+        [JwtDecoderConfig] as JDC
+        [LoadBalancerConfig] as LBC
+    }
+    
+    package "DTOs" {
+        [UserDTO] as UDTO
+        [UserLoginDTO] as ULDTO
+        [UserResponseDTO] as URDTO
+        [LoginRequest] as LR
+    }
+    
+    package "Models" {
+        [UserPrinciple] as UP
+    }
+    
+    package "Exceptions" {
+        [UserAlreadyExistsException] as UAEE
+        [InvalidTokenException] as ITE
+        [TokenExpiredException] as TEE
+        [GlobalExceptionHandler] as GEH
+    }
+}
+
+package "External Services" {
+    [User Service] as UDS
+    [Eureka Discovery] as ED
+    [Google OAuth2] as GO
+}
+
+package "Security Components" {
+    [BCrypt Password Encoder] as BPE
+    [JWT Token Validator] as JTV
+    [Spring Security] as SS
+}
+
+' Client connections
+WC --> UC : HTTP/REST
+MA --> UC : HTTP/REST
+AC --> UC : HTTP/REST
+
+' Controller to Service connections
+UC --> US : register(), login()
+UC --> RTS : refresh()
+RTC --> RTS : refresh()
+
+' Service to Service connections
+US --> JWT : generateAccessToken(), generateRefreshToken()
+US --> UDS : HTTP/REST
+US --> BPE : encode()
+RTS --> JWT : validateToken(), extractClaim()
+
+' Configuration connections
+SC --> CBTR : bearerTokenResolver
+SC --> OAuth2SH : successHandler
+SC --> OAuth2FH : failureHandler
+SC --> SS : securityFilterChain
+
+' OAuth2 connections
+OAuth2SH --> JWT : generateTokens()
+OAuth2SH --> GO : OAuth2 flow
+
+' Discovery and Load Balancing
+UDS --> ED : register
+US --> LBC : loadBalanced calls
+
+' Exception handling
+UC --> GEH : @ExceptionHandler
+US --> GEH : @ExceptionHandler
+RTS --> GEH : @ExceptionHandler
+
+' Security flow
+CBTR --> JTV : validate
+SS --> JTV : validate
+
+' DTOs usage
+UC --> UDTO : @RequestBody
+UC --> ULDTO : @RequestBody
+US --> URDTO : return
+US --> LR : internal
+
+note right of UC
+  Main entry points:
+  - /auth/register
+  - /auth/login
+  - /auth/refresh
+  - /auth/clear
+end note
+
+note right of US
+  Core business logic:
+  - User registration
+  - User authentication
+  - Token management
+  - Cookie handling
+end note
+
+note right of JWT
+  JWT operations:
+  - Token generation
+  - Token validation
+  - Claim extraction
+  - Expiration checking
+end note
+
+note right of SC
+  Security configuration:
+  - OAuth2 setup
+  - JWT resource server
+  - Cookie-based auth
+  - CORS/CSRF settings
+end note
+
+@enduml 

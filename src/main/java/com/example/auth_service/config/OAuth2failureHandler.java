@@ -16,5 +16,6 @@ public class OAuth2failureHandler implements AuthenticationFailureHandler {
                                         HttpServletResponse response,
                                         AuthenticationException exception) throws IOException, ServletException {
         System.err.println("OAuth2 login failed: " + exception.getMessage());
+        response.sendRedirect("http://localhost:4200/login-failure");
     }
 }

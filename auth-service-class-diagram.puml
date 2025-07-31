@@ -1,0 +1,221 @@
+@startuml Auth Service Class Diagram
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam classFontSize 12
+skinparam roundcorner 20
+
+title Authentication Service - Class Diagram
+
+class UserController {
+    - userService: UserService
+    - logger: Logger
+    --
+    + register(request: UserDTO, response: HttpServletResponse): ResponseEntity<?>
+    + login(request: UserLoginDTO, response: HttpServletResponse): ResponseEntity<?>
+    + clearCookies(response: HttpServletResponse): ResponseEntity<Void>
+    + clearAccessCookies(response: HttpServletResponse): ResponseEntity<Void>
+}
+
+class RefreshTokenController {
+    - refreshTokenService: RefreshTokenService
+    --
+    + refresh(refreshToken: String, response: HttpServletResponse): ResponseEntity<?>
+}
+
+class UserService {
+    - bCryptPasswordEncoder: BCryptPasswordEncoder
+    - authenticationManager: AuthenticationManager
+    - jwtService: JwtService
+    - restTemplate: RestTemplate
+    - logger: Logger
+    --
+    + register(request: UserDTO, response: HttpServletResponse): ResponseEntity<?>
+    + login(request: UserLoginDTO, response: HttpServletResponse): ResponseEntity<?>
+    + deleteCookie(name: String, response: HttpServletResponse): void
+}
+
+class JwtService {
+    - secretKey: String
+    - ACCESS_TOKEN_EXP: long
+    - REFRESH_TOKEN_EXP: long
+    --
+    + generateAccessToken(email: String, roles: List<String>): String
+    + generateRefreshToken(email: String, roles: List<String>): String
+    + extractClaim(token: String, claimResolver: Function<Claims, T>): T
+    + extractRoles(token: String): List<String>
+    + validateToken(token: String): boolean
+    - extractAllClaims(token: String): Claims
+    - isTokenExpired(token: String): boolean
+    - extractExpiration(token: String): Date
+    - getKey(): SecretKey
+}
+
+class RefreshTokenService {
+    - jwtService: JwtService
+    --
+    + refresh(refreshToken: String): String
+}
+
+class SecurityConfig {
+    - myUserDetailsService: MyUserDetailsService
+    - oAuth2failureHandler: OAuth2failureHandler
+    - oAuth2SuccessHandler: OAuth2successHandler
+    - cookieBearerTokenResolver: CookieBearerTokenResolver
+    --
+    + securityFilterChain(http: HttpSecurity): SecurityFilterChain
+    + provider(): AuthenticationProvider
+    + passwordEncoder(): PasswordEncoder
+    + authenticationManager(config: AuthenticationConfiguration): AuthenticationManager
+}
+
+class CookieBearerTokenResolver {
+    --
+    + resolve(request: HttpServletRequest): String
+}
+
+class OAuth2successHandler {
+    - jwtService: JwtService
+    --
+    + onAuthenticationSuccess(request: HttpServletRequest, response: HttpServletResponse, authentication: Authentication): void
+}
+
+class UserDTO {
+    - firstName: String
+    - lastName: String
+    - email: String
+    - password: String
+    - roles: List<String>
+    --
+    + getFirstName(): String
+    + setFirstName(firstName: String): void
+    + getLastName(): String
+    + setLastName(lastName: String): void
+    + getEmail(): String
+    + setEmail(email: String): void
+    + getPassword(): String
+    + setPassword(password: String): void
+    + getRoles(): List<String>
+    + setRoles(roles: List<String>): void
+}
+
+class UserLoginDTO {
+    - email: String
+    - password: String
+    - keepLoggedIn: boolean
+    --
+    + getEmail(): String
+    + setEmail(email: String): void
+    + getPassword(): String
+    + setPassword(password: String): void
+    + isKeepLoggedIn(): boolean
+    + setKeepLoggedIn(keepLoggedIn: boolean): void
+}
+
+class UserResponseDTO {
+    - id: String
+    - email: String
+    - firstName: String
+    - lastName: String
+    - roles: List<String>
+    --
+    + getId(): String
+    + setId(id: String): void
+    + getEmail(): String
+    + setEmail(email: String): void
+    + getFirstName(): String
+    + setFirstName(firstName: String): void
+    + getLastName(): String
+    + setLastName(lastName: String): void
+    + getRoles(): List<String>
+    + setRoles(roles: List<String>): void
+}
+
+class LoginRequest {
+    - email: String
+    - password: String
+    --
+    + getEmail(): String
+    + setEmail(email: String): void
+    + getPassword(): String
+    + setPassword(password: String): void
+}
+
+class UserPrinciple {
+    - id: String
+    - email: String
+    - password: String
+    - authorities: Collection<? extends GrantedAuthority>
+    --
+    + getId(): String
+    + getEmail(): String
+    + getPassword(): String
+    + getAuthorities(): Collection<? extends GrantedAuthority>
+    + isAccountNonExpired(): boolean
+    + isAccountNonLocked(): boolean
+    + isCredentialsNonExpired(): boolean
+    + isEnabled(): boolean
+}
+
+class MyUserDetailsService {
+    --
+    + loadUserByUsername(username: String): UserDetails
+}
+
+class UserAlreadyExistsException {
+    --
+    + UserAlreadyExistsException(message: String)
+}
+
+class InvalidTokenException {
+    --
+    + InvalidTokenException(message: String)
+}
+
+class TokenExpiredException {
+    --
+    + TokenExpiredException(message: String)
+}
+
+class GlobalExceptionHandler {
+    --
+    + handleUserAlreadyExists(ex: UserAlreadyExistsException): ResponseEntity<ErrorResponse>
+    + handleInvalidToken(ex: InvalidTokenException): ResponseEntity<ErrorResponse>
+    + handleTokenExpired(ex: TokenExpiredException): ResponseEntity<ErrorResponse>
+    + handleBadCredentials(ex: BadCredentialsException): ResponseEntity<ErrorResponse>
+    + handleValidationErrors(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse>
+    + handleGenericException(ex: Exception): ResponseEntity<ErrorResponse>
+}
+
+' Relationships
+UserController --> UserService : uses
+UserController --> RefreshTokenService : uses
+RefreshTokenController --> RefreshTokenService : uses
+
+UserService --> JwtService : uses
+UserService --> RestTemplate : uses
+UserService --> BCryptPasswordEncoder : uses
+UserService --> AuthenticationManager : uses
+
+RefreshTokenService --> JwtService : uses
+
+SecurityConfig --> MyUserDetailsService : configures
+SecurityConfig --> OAuth2successHandler : configures
+SecurityConfig --> CookieBearerTokenResolver : configures
+
+OAuth2successHandler --> JwtService : uses
+
+UserController ..> UserDTO : accepts
+UserController ..> UserLoginDTO : accepts
+UserService ..> UserResponseDTO : returns
+UserService ..> LoginRequest : uses
+
+UserPrinciple ..|> UserDetails : implements
+MyUserDetailsService ..> UserPrinciple : creates
+
+GlobalExceptionHandler ..> UserAlreadyExistsException : handles
+GlobalExceptionHandler ..> InvalidTokenException : handles
+GlobalExceptionHandler ..> TokenExpiredException : handles
+
+@enduml 

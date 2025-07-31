@@ -1,0 +1,202 @@
+@startuml Auth Service Sequence Diagram
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+skinparam maxmessagesize 60
+
+title Authentication Service - Sequence Diagram
+
+actor Client
+participant "UserController" as UC
+participant "UserService" as US
+participant "JwtService" as JWT
+participant "User-Service" as UDS
+participant "RefreshTokenController" as RTC
+participant "RefreshTokenService" as RTS
+participant "SecurityConfig" as SC
+participant "CookieBearerTokenResolver" as CBTR
+participant "OAuth2SuccessHandler" as OAuth2
+
+== User Registration Flow ==
+
+Client -> UC: POST /auth/register\n(UserDTO)
+activate UC
+
+UC -> US: register(request, response)
+activate US
+
+US -> US: encodePassword(password)
+US -> UDS: POST /api/users\n(UserDTO)
+activate UDS
+UDS --> US: UserResponseDTO
+deactivate UDS
+
+US -> JWT: generateAccessToken(email, roles)
+activate JWT
+JWT --> US: accessToken
+deactivate JWT
+
+US -> JWT: generateRefreshToken(email, roles)
+activate JWT
+JWT --> US: refreshToken
+deactivate JWT
+
+US -> US: createCookies(accessToken, refreshToken)
+US --> UC: ResponseEntity<UserResponseDTO>
+deactivate US
+
+UC --> Client: 201 Created + Cookies
+deactivate UC
+
+== User Login Flow ==
+
+Client -> UC: POST /auth/login\n(UserLoginDTO)
+activate UC
+
+UC -> US: login(request, response)
+activate US
+
+US -> UDS: POST /api/users/login\n(LoginRequest)
+activate UDS
+UDS --> US: UserResponseDTO
+deactivate UDS
+
+US -> US: createAuthentication(user)
+US -> JWT: generateAccessToken(email, roles)
+activate JWT
+JWT --> US: accessToken
+deactivate JWT
+
+US -> JWT: generateRefreshToken(email, roles)
+activate JWT
+JWT --> US: refreshToken
+deactivate JWT
+
+US -> US: createCookies(accessToken, refreshToken)
+US --> UC: ResponseEntity<UserResponseDTO>
+deactivate US
+
+UC --> Client: 200 OK + Cookies
+deactivate UC
+
+== Token Refresh Flow ==
+
+Client -> RTC: GET /auth/refresh\n(Refresh-Token Cookie)
+activate RTC
+
+RTC -> RTS: refresh(refreshToken)
+activate RTS
+
+RTS -> JWT: validateToken(refreshToken)
+activate JWT
+JWT --> RTS: boolean
+deactivate JWT
+
+alt Token Valid
+    RTS -> JWT: extractClaim(refreshToken, Claims::getSubject)
+    activate JWT
+    JWT --> RTS: email
+    deactivate JWT
+    
+    RTS -> JWT: extractRoles(refreshToken)
+    activate JWT
+    JWT --> RTS: roles
+    deactivate JWT
+    
+    RTS -> JWT: generateAccessToken(email, roles)
+    activate JWT
+    JWT --> RTS: newAccessToken
+    deactivate JWT
+    
+    RTS --> RTC: newAccessToken
+    deactivate RTS
+    
+    RTC -> RTC: createAccessCookie(newAccessToken)
+    RTC --> Client: 202 Accepted + Access-Token Cookie
+else Token Invalid
+    RTS --> RTC: BadCredentialsException
+    deactivate RTS
+    RTC --> Client: 401 Unauthorized
+end
+
+deactivate RTC
+
+== Protected Resource Access ==
+
+Client -> SC: GET /protected-resource\n(Access-Token Cookie)
+activate SC
+
+SC -> CBTR: resolve(request)
+activate CBTR
+CBTR -> CBTR: extractAccessTokenFromCookie()
+CBTR --> SC: accessToken
+deactivate CBTR
+
+SC -> JWT: validateToken(accessToken)
+activate JWT
+JWT --> SC: boolean
+deactivate JWT
+
+alt Token Valid
+    SC -> JWT: extractRoles(accessToken)
+    activate JWT
+    JWT --> SC: roles
+    deactivate JWT
+    
+    SC -> SC: checkAuthorization(roles)
+    SC --> Client: 200 OK + Resource
+else Token Invalid/Expired
+    SC --> Client: 401 Unauthorized
+end
+
+deactivate SC
+
+== OAuth2 Google Login Flow ==
+
+Client -> SC: GET /oauth2/authorization/google
+activate SC
+
+SC -> OAuth2: onAuthenticationSuccess(request, response, authentication)
+activate OAuth2
+
+OAuth2 -> OAuth2: extractUserInfo(authentication)
+OAuth2 -> JWT: generateAccessToken(email, roles)
+activate JWT
+JWT --> OAuth2: accessToken
+deactivate JWT
+
+OAuth2 -> JWT: generateRefreshToken(email, roles)
+activate JWT
+JWT --> OAuth2: refreshToken
+deactivate JWT
+
+OAuth2 -> OAuth2: createCookies(accessToken, refreshToken)
+OAuth2 -> OAuth2: buildRedirectUrl(userInfo)
+OAuth2 --> Client: 302 Redirect to frontend
+deactivate OAuth2
+
+deactivate SC
+
+== Logout Flow ==
+
+Client -> UC: GET /auth/clear
+activate UC
+
+UC -> US: deleteCookie("Access-Token", response)
+activate US
+US -> US: createExpiredCookie("Access-Token")
+US --> UC: void
+deactivate US
+
+UC -> US: deleteCookie("Refresh-Token", response)
+activate US
+US -> US: createExpiredCookie("Refresh-Token")
+US --> UC: void
+deactivate US
+
+UC --> Client: 200 OK + Expired Cookies
+deactivate UC
+
+@enduml 
