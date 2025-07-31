@@ -35,21 +35,21 @@ The authentication service follows a layered architecture pattern with clear sep
 sequenceDiagram
     participant Client
     participant UserController
-    participant UserService
+    participant UserService1 as InternalUserService
     participant JwtService
     participant UserService as ExternalUserService
 
     Client->>UserController: POST /auth/register (UserDTO)
-    UserController->>UserService: register(request, response)
-    UserService->>UserService: encodePassword(password)
-    UserService->>ExternalUserService: POST /api/users (UserDTO)
-    ExternalUserService-->>UserService: UserResponseDTO
-    UserService->>JwtService: generateAccessToken(email, roles)
-    JwtService-->>UserService: accessToken
-    UserService->>JwtService: generateRefreshToken(email, roles)
-    JwtService-->>UserService: refreshToken
-    UserService->>UserService: createCookies(accessToken, refreshToken)
-    UserService-->>UserController: ResponseEntity<UserResponseDTO>
+    UserController->>UserService1: register(request, response)
+    UserService1->>UserService1: encodePassword(password)
+    UserService1->>ExternalUserService: POST /api/users (UserDTO)
+    ExternalUserService-->>UserService1: UserResponseDTO
+    UserService1->>JwtService: generateAccessToken(email, roles)
+    JwtService-->>UserService1: accessToken
+    UserService1->>JwtService: generateRefreshToken(email, roles)
+    JwtService-->>UserService1: refreshToken
+    UserService1->>UserService1: createCookies(accessToken, refreshToken)
+    UserService1-->>UserController: ResponseEntity<UserResponseDTO>
     UserController-->>Client: 201 Created + Cookies
 ```
 
